@@ -2,68 +2,116 @@ import numpy as np
 import cv2
 import argparse
 from scipy.interpolate import interp1d
+from collections import defaultdict
+
+
+def filter_and_group_crfs(input_file):
+    """
+    Filters and groups CRFs by their base name and color channel.
+    
+    Args:
+    - input_file (str): Path to the input text file with CRFs.
+    
+    Returns:
+    - grouped_crfs (dict): A dictionary with base names as keys and a dictionary of CRF types as values.
+    """
+    keywords = ['Red', 'Green', 'Blue']
+    grouped_crfs = defaultdict(dict)
+
+    with open(input_file, 'r') as file:
+        lines = file.readlines()
+
+    # Process CRFs in groups of 6 lines
+    for i in range(0, len(lines), 6):
+        crf_name = lines[i].strip()  # CRF name is on the first line of each group
+        crf_type = lines[i + 1].strip()  # CRF type (not used for grouping)
+        i_values = np.array([float(x) for x in lines[i + 3].strip().split()])
+        b_values = np.array([float(x) for x in lines[i + 5].strip().split()])
+
+        # Check which keyword is present
+        for keyword in keywords:
+            if keyword in crf_name:
+                # Extract base name by removing the keyword
+                base_name = crf_name.replace(keyword, "")
+                grouped_crfs[base_name][keyword + '_I'] = i_values
+                grouped_crfs[base_name][keyword + '_B'] = b_values
+
+
+    return grouped_crfs
+
+
+def apply_crf(img, crf_group):
+    """
+    Apply the camera response function (CRF) to an image.
+    """
+    transformed_img = np.zeros_like(img, dtype=np.float32)
+
+    # Create interpolation functions for the CRFs
+    crf_red = interp1d(crf_group['Red_I'], crf_group['Red_B'], kind='linear', bounds_error=False, fill_value="extrapolate")
+    crf_green = interp1d(crf_group['Green_I'], crf_group['Green_B'], kind='linear', bounds_error=False, fill_value="extrapolate")
+    crf_blue = interp1d(crf_group['Blue_I'], crf_group['Blue_B'], kind='linear', bounds_error=False, fill_value="extrapolate")
+
+    # Apply CRFs to respective channels
+    transformed_img[:, :, 2] = crf_red(img[:, :, 2] / 255.0)  # Red channel
+    transformed_img[:, :, 1] = crf_green(img[:, :, 1] / 255.0)  # Green channel
+    transformed_img[:, :, 0] = crf_blue(img[:, :, 0] / 255.0)  # Blue channel
+    
+    # Scale back to 0-255 range
+    transformed_img = np.clip(transformed_img * 255, 0, 255).astype(np.uint8)
+    return transformed_img
+
+
+def reverse_crf(img, crf_group):
+    """
+    Apply the inverse camera response function (CRF) to an image.
+    """
+    transformed_img = np.zeros_like(img, dtype=np.float32)
+
+    # Create interpolation functions for the inverse CRFs
+    crf_red_inv = interp1d(crf_group['Red_B'], crf_group['Red_I'], kind='linear', bounds_error=False, fill_value="extrapolate")
+    crf_green_inv = interp1d(crf_group['Green_B'], crf_group['Green_I'], kind='linear', bounds_error=False, fill_value="extrapolate")
+    crf_blue_inv = interp1d(crf_group['Blue_B'], crf_group['Blue_I'], kind='linear', bounds_error=False, fill_value="extrapolate")
+
+    # Apply CRFs to respective channels
+    transformed_img[:, :, 2] = crf_red_inv(img[:, :, 2] / 255.0)  # Red channel
+    transformed_img[:, :, 1] = crf_green_inv(img[:, :, 1] / 255.0)  # Green channel
+    transformed_img[:, :, 0] = crf_blue_inv(img[:, :, 0] / 255.0)  # Blue channel
+    
+    # Scale back to normal range
+    transformed_img = (transformed_img * 255).astype(np.uint8)
+    return transformed_img
 
 
 def demosaic(raw_img):
     """
     Apply demosaicing to a RAW image to reconstruct an RGB image.
-    Assumes Bayer pattern (BGGR).
+    Assumes Bayer pattern (RGGB).
     """
-    rgb_img = cv2.cvtColor(raw_img, cv2.COLOR_BAYER_BG2BGR)
+    rgb_img = cv2.cvtColor(raw_img, cv2.COLOR_BAYER_RG2RGB)
     return rgb_img
 
 
 def reverse_demosaic(img):
     """
     Reverse demosaicing: Converts an RGB image to a RAW Bayer pattern.
-    Assumes Bayer pattern (BGGR).
+    Assumes Bayer pattern (RGGB).
     """
-    # Convert to grayscale as an approximation for RAW Bayer
-    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    return gray_img
+    # Create an empty Bayer RAW image
+    raw_img = np.zeros_like(img[:, :, 0])  # RAW Bayer is a single-channel image
 
+    # Extract color channels
+    r_channel = img[0::2, 0::2, 2]  # Red: top-left pixels (even rows, even cols)
+    g_channel_1 = img[0::2, 1::2, 1]  # Green (1): top-right pixels (even rows, odd cols)
+    g_channel_2 = img[1::2, 0::2, 1]  # Green (2): bottom-left pixels (odd rows, even cols)
+    b_channel = img[1::2, 1::2, 0]  # Blue: bottom-right pixels (odd rows, odd cols)
 
-def choose_crf(crf_file_lines):
+    # Fill the Bayer RAW image
+    raw_img[0::2, 0::2] = r_channel  # Top-left
+    raw_img[0::2, 1::2] = g_channel_1  # Top-right
+    raw_img[1::2, 0::2] = g_channel_2  # Bottom-left
+    raw_img[1::2, 1::2] = b_channel  # Bottom-right
 
-    num_crfs = len(crf_file_lines) // 6
-    
-    # Randomly select a CRF
-    selected_crf_idx = np.random.randint(0, num_crfs - 1)
-    start_line = selected_crf_idx * 6
-    crf_name = crf_file_lines[start_line].strip()  # First line: CRF name
-    crf_type = crf_file_lines[start_line + 1].strip()  # Second line: CRF type
-    
-    # Extract I= and B= sequences
-    i_values = np.array([float(x) for x in crf_file_lines[start_line + 3].strip().split()])
-    b_values = np.array([float(x) for x in crf_file_lines[start_line + 5].strip().split()])
-    
-    print(f"Selected CRF: {crf_name} ({crf_type})")
-    
-    # Create an interpolation function for the CRF
-    crf = interp1d(i_values, b_values, kind='linear', bounds_error=False, fill_value="extrapolate")
-    inverse_crf = interp1d(b_values, i_values, kind='linear', bounds_error=False, fill_value="extrapolate")
-
-    return crf, inverse_crf
-
-
-def apply_crf(img, crf):
-    """
-    Apply the camera response function (CRF) to an image.
-    """
-    img_normalized = img / 255.0  # Normalize pixel values to [0, 1]
-    img_transformed = np.clip(crf(img_normalized), 0, 1)  # Apply CRF and clip to [0, 1]
-    img_output = (img_transformed * 255).astype(np.uint8)  # Convert back to uint8
-    return img_output
-
-
-def reverse_crf(img, inverse_crf):
-    """
-    Apply the inverse camera response function (CRF) to an image.
-    """
-    img_normalized = img / 255.0  # Normalize pixel values to [0, 1]
-    img_transformed = np.clip(inverse_crf(img_normalized), 0, 1)  # Apply inverse CRF and clip to [0, 1]
-    img_output = (img_transformed * 255).astype(np.uint8)  # Convert back to uint8
-    return img_output
+    return raw_img
 
 
 def H_Gaussian_noise(raw_img, sigma_read=0.01, sigma_shot=0.01):
@@ -89,23 +137,25 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Open the file and process its lines
-    file_path = "./dorfCurves.txt"
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
+    grouped_crfs = filter_and_group_crfs('dorfCurves_filtered.txt')
 
-    for i in range(0, len(lines), 6):  
-        print(lines[i].strip())
-
-    crf, crf_inv = choose_crf(lines)
+    # Select a random CRF group
+    base_name = np.random.choice(list(grouped_crfs.keys()))
+    selected_crf_group = grouped_crfs[base_name]
+    print(f"Selected CRF group: {base_name}")
 
     # Read original RGB image
     original_img = cv2.imread(args.input_path, cv2.IMREAD_COLOR)
 
     # Reverse camera response function
-    crf_reversed_img = reverse_crf(original_img, crf_inv)
+    crf_reversed_img = reverse_crf(original_img, selected_crf_group)
+    cv2.imshow("img", crf_reversed_img)
+    cv2.waitKey(0)
 
     # Reverse demosaicing
     raw_img = reverse_demosaic(crf_reversed_img)
+    cv2.imshow("img", raw_img)
+    cv2.waitKey(0)
 
     # Apply heteroscedastic Gaussian noise
     noisy_raw_img = H_Gaussian_noise(raw_img)
@@ -114,7 +164,7 @@ if __name__ == '__main__':
     demosaic_img = demosaic(noisy_raw_img)
 
     # Re-apply camera response function
-    noisy_img = apply_crf(demosaic_img, crf)
+    noisy_img = apply_crf(demosaic_img, selected_crf_group)
 
     cv2.imwrite(args.output_path, noisy_img)
     
