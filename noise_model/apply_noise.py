@@ -9,6 +9,7 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
 def filter_and_group_crfs(input_file):
     """
     Filters and groups CRFs by their base name and color channel.
@@ -48,6 +49,7 @@ def filter_and_group_crfs(input_file):
 
     return grouped_crfs
 
+
 def apply_crf(img, crf_group):
     """
     Apply the camera response function (CRF) to an RGB image.
@@ -76,6 +78,7 @@ def apply_crf(img, crf_group):
     # Scale back to 0-255 range and convert to BGR for OpenCV
     transformed_img = np.clip(transformed_img * 255, 0, 255).astype(np.uint8)
     return cv2.cvtColor(transformed_img, cv2.COLOR_RGB2BGR)
+
 
 def reverse_crf(img, crf_group):
     """
@@ -106,12 +109,14 @@ def reverse_crf(img, crf_group):
     transformed_img = np.clip(transformed_img * 255, 0, 255).astype(np.uint8)
     return cv2.cvtColor(transformed_img, cv2.COLOR_RGB2BGR)
 
+
 def demosaic(raw_img):
     """
     Apply demosaicing to a RAW image to reconstruct an RGB image.
     Assumes Bayer pattern (RGGB).
     """
     return cv2.cvtColor(raw_img, cv2.COLOR_BAYER_BG2RGB)
+
 
 def reverse_demosaic(img):
     """
@@ -141,6 +146,7 @@ def reverse_demosaic(img):
 
     return raw_img
 
+
 def add_heteroscedastic_noise(raw_img, sigma_read=0.01, sigma_shot=0.01):
     """
     Add heteroscedastic Gaussian noise to a RAW image.
@@ -153,6 +159,7 @@ def add_heteroscedastic_noise(raw_img, sigma_read=0.01, sigma_shot=0.01):
     noisy_img = raw_normalized + read_noise + shot_noise
     noisy_img = np.clip(noisy_img, 0, 1)  # Clip to valid range
     return (noisy_img * 255).astype(np.uint8)
+
 
 def main(input_path, output_path):
     """
@@ -187,6 +194,7 @@ def main(input_path, output_path):
     # Save the final image
     cv2.imwrite(output_path, noisy_img)
     logging.info(f"Processed image saved to {output_path}")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
