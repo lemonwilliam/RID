@@ -198,12 +198,13 @@ def main(input_path, output_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_folder', '-i', type=str, default='./data/input_patches/')
+    parser.add_argument('--input_folder', '-i', type=str, default='./data/input/')
     parser.add_argument('--output_folder', '-o', type=str, default='./data/output/')
-    parser.add_argument('--num_image', '-n', type=int, default=1)
+    #parser.add_argument('--num_image', '-n', type=int, default=1)
     args = parser.parse_args()
 
-    for filename in os.listdir(args.input_folder):
+    for i, filename in enumerate(os.listdir(args.input_folder)):
         input_path = os.path.join(args.input_folder, filename)
         output_path = os.path.join(args.output_folder, filename)
         main(input_path, output_path)
+        print(f"Finished image {i+1}")
