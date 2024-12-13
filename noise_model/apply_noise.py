@@ -198,8 +198,11 @@ def main(input_path, output_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_folder', '-i', type=str, default='./data/input_patches/')
-    parser.add_argument('--output_folder', '-o', type=str, default='./data/output/')
+    # parser.add_argument('--input_folder', '-i', type=str, default='./data/input_patches/')
+    # parser.add_argument('--output_folder', '-o', type=str, default='./data/output/')
+
+    parser.add_argument('--input_folder', '-i', type=str, default='./test/add_noise/GT/')
+    parser.add_argument('--output_folder', '-o', type=str, default='./test/add_noise/noise/')
     #parser.add_argument('--num_image', '-n', type=int, default=1)
     args = parser.parse_args()
 
