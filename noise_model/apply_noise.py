@@ -193,12 +193,12 @@ def main(input_path, output_path):
 
     # Save the final image
     cv2.imwrite(output_path, noisy_img)
-    logging.info(f"Processed image saved to {output_path}")
+    #logging.info(f"Processed image saved to {output_path}")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input_folder', '-i', type=str, default='./data/input/')
+    parser.add_argument('--input_folder', '-i', type=str, default='./data/input_patches/')
     parser.add_argument('--output_folder', '-o', type=str, default='./data/output/')
     #parser.add_argument('--num_image', '-n', type=int, default=1)
     args = parser.parse_args()
@@ -206,5 +206,6 @@ if __name__ == '__main__':
     for i, filename in enumerate(os.listdir(args.input_folder)):
         input_path = os.path.join(args.input_folder, filename)
         output_path = os.path.join(args.output_folder, filename)
+        logging.info(f"Processing image {input_path}")
         main(input_path, output_path)
-        print(f"Finished image {i+1}")
+        print(f"Finished {i+1} out of 456")
