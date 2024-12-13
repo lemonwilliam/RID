@@ -2,6 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Restormer" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/imagenet-autoencoder" vcs="Git" />
   </component>
 </project>
